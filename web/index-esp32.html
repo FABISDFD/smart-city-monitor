@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang='es'>
+<head>
+  <meta charset='UTF-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+  <title>Smart City - Monitor Acústico (ESP32)</title>
+  <script src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'></script>
+  <link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'>
+  <link rel='stylesheet' href='style.css'>
+</head>
+<body>
+  <!-- Header -->
+  <div class='header'>
+    <div class='logo'>
+      <i class='fas fa-city'></i>
+      <span>Smart City - Monitor Acústico</span>
+    </div>
+    <div class='status-indicator' id='connectionStatus'>
+      <i class='fas fa-wifi'></i>
+      <span>Conectando...</span>
+    </div>
+  </div>
+
+  <!-- Container Principal -->
+  <div class='container'>
+    <!-- Dashboard Grid -->
+    <div class='dashboard-grid'>
+      <!-- Tarjeta Principal -->
+      <div class='card metric-card' id='mainCard'>
+        <div class='metric-label'>Nivel de Ruido Actual</div>
+        <div class='metric-value' id='currentDB'>-- dB</div>
+        <div class='metric-sublabel' id='noiseCategory'>Calculando...</div>
+        <div class='timestamp' id='lastUpdate'>Última actualización: --</div>
+      </div>
+
+      <!-- Tarjeta de Alertas -->
+      <div class='card alert-card' id='alertCard'>
+        <h3><i class='fas fa-exclamation-triangle'></i> Estado de Alerta</h3>
+        <div class='metric-value' id='alertLevel'>NORMAL</div>
+        <div id='alertMessage'>Niveles dentro de norma</div>
+        <div class='regulations'>
+          <div class='regulation-item'>
+            <span>OMS Día (55 dB):</span>
+            <span id='whoDay'>--</span>
+          </div>
+          <div class='regulation-item'>
+            <span>OMS Noche (40 dB):</span>
+            <span id='whoNight'>--</span>
+          </div>
+          <div class='regulation-item'>
+            <span>EPA Urbano (70 dB):</span>
+            <span id='epaUrban'>--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estadísticas -->
+      <div class='card'>
+        <h3><i class='fas fa-chart-bar'></i> Estadísticas (Última Hora)</h3>
+        <div class='statistics-grid'>
+          <div class='stat-item'>
+            <div class='stat-value' id='avgDB'>--</div>
+            <div>Promedio</div>
+          </div>
+          <div class='stat-item'>
+            <div class='stat-value' id='maxDB'>--</div>
+            <div>Máximo</div>
+          </div>
+          <div class='stat-item'>
+            <div class='stat-value' id='minDB'>--</div>
+            <div>Mínimo</div>
+          </div>
+          <div class='stat-item'>
+            <div class='stat-value' id='violationsCount'>--</div>
+            <div>Violaciones</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clasificación -->
+      <div class='card'>
+        <h3><i class='fas fa-tags'></i> Clasificación de Ruido</h3>
+        <div class='metric-value' id='noiseSource'>Analizando...</div>
+        <div id='sourceDescription'>Determinando origen del ruido</div>
+        <div style='margin-top: 1rem;'>
+          <div><strong>Probabilidad:</strong> <span id='sourceProbability'>--%</span></div>
+          <div><strong>Impacto:</strong> <span id='noiseImpact'>--</span></div>
+        </div>
+      </div>
+
+      <!-- Predicción -->
+      <div class='card prediction-card'>
+        <h3><i class='fas fa-crystal-ball'></i> Predicción y Tendencia</h3>
+        <div><strong>Tendencia:</strong> <span id='trendIndicator'>--</span></div>
+        <div><strong>Predicción (5min):</strong> <span id='prediction'>-- dB</span></div>
+        <div class='frequency-display'>
+          <i class='fas fa-wave-square'></i>
+          <span id='peakFreq'>-- Hz</span>
+        </div>
+        <div style='font-size: 0.9rem; opacity: 0.8;' id='freqType'>Analizando frecuencias...</div>
+      </div>
+    </div>
+
+    <!-- Gráfico Temporal -->
+    <div class='card'>
+      <h3><i class='fas fa-chart-line'></i> Tendencia Temporal</h3>
+      <div class='chart-container'>
+        <canvas id='trendChart'></canvas>
+      </div>
+    </div>
+
+    <!-- Gráfico de Frecuencia -->
+    <div class='card'>
+      <h3><i class='fas fa-signal'></i> Análisis Espectral</h3>
+      <div class='chart-container'>
+        <canvas id='freqChart'></canvas>
+      </div>
+    </div>
+
+    <!-- Mapa de Calor -->
+    <div class='card'>
+      <h3><i class='fas fa-calendar-day'></i> Patrón Diario (24h)</h3>
+      <div class='heatmap' id='hourlyHeatmap'></div>
+      <div style='display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.8rem;'>
+        <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+      </div>
+    </div>
+
+    <!-- Controles -->
+    <div class='controls'>
+      <button class='btn active' id='autoBtn' onclick='toggleAutoUpdate()'>
+        <i class='fas fa-play'></i> Auto (2s)
+      </button>
+      <button class='btn' onclick='updateData()'>
+        <i class='fas fa-sync'></i> Actualizar
+      </button>
+      <button class='btn' onclick='exportData()'>
+        <i class='fas fa-download'></i> Exportar Datos
+      </button>
+      <button class='btn' onclick='generateReport()'>
+        <i class='fas fa-file-pdf'></i> Reporte
+      </button>
+      <button class='btn active' id='alertBtn' onclick='toggleAlerts()'>
+        <i class='fas fa-bell'></i> Alertas: ON
+      </button>
+      <button class='btn' onclick='showConfigModal()'>
+        <i class='fas fa-cog'></i> Configurar ESP32
+      </button>
+    </div>
+
+    <!-- Notificación -->
+    <div class='notification' id='notification'></div>
+  </div>
+
+  <script src='app-esp32.js'></script>
+</body>
+</html>
